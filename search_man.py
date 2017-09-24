@@ -48,7 +48,7 @@ class SearchMan(StreamListener):
             status, spoiler_text = self.make_text_with_none(word)
         else:
             status, spoiler_text = self.make_text_with_page(page)
-        status = '@{acct} '.format(acct=acct) + status
+            spoiler_text = spoiler_text + ' @{acct}'.format(acct=acct)
         self.post(self.mastodon, status, spoiler_text, status_id)
 
     def on_update(self, status):
@@ -80,14 +80,14 @@ class SearchMan(StreamListener):
         self.post(self.mastodon, '死にました')
 
 
-def shutdown():
+def shutdown(*args):
     instance.finish()
     sys.exit(0)
 
 
 if True:
     for sig in (signal.SIGABRT, signal.SIGILL, signal.SIGINT, signal.SIGSEGV, signal.SIGTERM):
-        signal.signal(sig, shutdown)  # mastodon.local_streamがシグナルを止めるっぽいのでこれ意味ない
+        signal.signal(sig, shutdown)
 
     instance = SearchMan()
     instance.start()
