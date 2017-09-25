@@ -1,3 +1,4 @@
+import datetime
 from mastodon import Mastodon, StreamListener
 import re
 import signal
@@ -9,6 +10,12 @@ wikipedia.set_lang('ja')
 
 class SearchMan(StreamListener):
     @staticmethod
+    def should_respect_ltl(old_status, new_status, min_seconds=30):
+        old_time = datetime.datetime.strptime(old_status['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
+        new_time = datetime.datetime.strptime(new_status['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
+        return (new_time - old_time).seconds <= min_seconds
+
+    @staticmethod
     def take_page(word):
         try:
             titles = wikipedia.search(word)
@@ -18,9 +25,15 @@ class SearchMan(StreamListener):
         return page
 
     @staticmethod
-    def make_text_with_page(page):
-        spoiler_text = "なになに？「{title}」とは、".format(title=page.title)
-        status = page.content[:400] + '.....\n' + page.url
+    def make_text_with_respect(acct):
+        status = '@{acct} '.format(acct=acct) + "やー、ちょっと疲れたんでパスで・・・"
+        spoiler_text = None
+        return status, spoiler_text
+
+    @staticmethod
+    def make_text_with_page(page, acct):
+        spoiler_text = "なになに？「{title}」とは、".format(title=page.title) + ' @{acct}'.format(acct=acct)
+        status = page.content[:450 - len(page.url)] + '.....\n' + page.url
         return status, spoiler_text
 
     @staticmethod
@@ -47,8 +60,7 @@ class SearchMan(StreamListener):
         if page is None:
             status, spoiler_text = self.make_text_with_none(word)
         else:
-            status, spoiler_text = self.make_text_with_page(page)
-            spoiler_text = spoiler_text + ' @{acct}'.format(acct=acct)
+            status, spoiler_text = self.make_text_with_page(page, acct)
         self.post(self.mastodon, status, spoiler_text, status_id)
 
     def on_update(self, status):
@@ -60,6 +72,15 @@ class SearchMan(StreamListener):
         word = m.group(1)
         acct = status["account"]["acct"]
         status_id = str(status['id'])
+
+        # status history
+        if len(self.status_history) >= 8 and self.should_respect_ltl(self.status_history[-1], status):
+            status, spoiler_text = self.make_text_with_respect(acct)
+            self.post(self.mastodon, status, spoiler_text, status_id)
+            return
+        self.status_history.append(status)
+        self.status_history = self.status_history[:8]
+
         self.got_word(word, acct, status_id)
 
     def __init__(self):
@@ -69,6 +90,7 @@ class SearchMan(StreamListener):
             api_base_url='https://friends.nico'
         )
 
+        self.status_history = []
         self.re_remove_html_tag = re.compile(r'<[^>]+>')
         self.re_search = re.compile('\s?(.+)って(何|なに|ナニ|何ですか|なんですか)？$')
 
