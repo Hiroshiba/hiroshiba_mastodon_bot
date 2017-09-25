@@ -10,7 +10,7 @@ wikipedia.set_lang('ja')
 
 class SearchMan(StreamListener):
     @staticmethod
-    def should_respect_ltl(old_status, new_status, min_seconds=30):
+    def should_respect_ltl(old_status, new_status, min_seconds=10):
         old_time = datetime.datetime.strptime(old_status['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
         new_time = datetime.datetime.strptime(new_status['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
         return (new_time - old_time).seconds <= min_seconds
@@ -32,8 +32,8 @@ class SearchMan(StreamListener):
 
     @staticmethod
     def make_text_with_page(page, acct):
-        spoiler_text = "なになに？「{title}」とは、".format(title=page.title) + ' @{acct}'.format(acct=acct)
-        status = page.content[:450 - len(page.url)] + '.....\n' + page.url
+        spoiler_text = "なになに？「{title}」とは、".format(title=page.title)
+        status = '@{acct} '.format(acct=acct) + page.content[:450 - len(page.url)] + '.....\n' + page.url
         return status, spoiler_text
 
     @staticmethod
@@ -48,8 +48,8 @@ class SearchMan(StreamListener):
             mastodon.status_post(
                 status=status,
                 spoiler_text=spoiler_text,
-                # in_reply_to_id=in_reply_to_id,  # LTLに現れないので除外
-                visibility='public',
+                in_reply_to_id=in_reply_to_id,  # LTLに現れないので除外
+                visibility='private',
             )
         except:
             # 文字数が多かったりするとエラーを吐くらしい
@@ -74,12 +74,12 @@ class SearchMan(StreamListener):
         status_id = str(status['id'])
 
         # status history
-        if len(self.status_history) >= 8 and self.should_respect_ltl(self.status_history[-1], status):
+        if len(self.status_history) >= 1 and self.should_respect_ltl(self.status_history[0], status):
             status, spoiler_text = self.make_text_with_respect(acct)
             self.post(self.mastodon, status, spoiler_text, status_id)
             return
         self.status_history.append(status)
-        self.status_history = self.status_history[:8]
+        self.status_history = self.status_history[1:]
 
         self.got_word(word, acct, status_id)
 
